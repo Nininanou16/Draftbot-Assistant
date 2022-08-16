@@ -1,5 +1,7 @@
 import { SlashCommandBuilder } from '@discordjs/builders';
+import { User, TextBasedChannel } from 'discord.js';
 import { Reminder } from '../../libs/Reminder.js';
+import { Context } from '../../libs/Context.js';
 
 export const data = new SlashCommandBuilder()
 	.setName('add_reminder')
@@ -11,7 +13,7 @@ export const data = new SlashCommandBuilder()
     )
     .addIntegerOption(option => option
 		.setName("time")
-		.setDescription("Le temps avant que le rappel soit envoyé")
+		.setDescription("Le temps avant que le rappel ne soit envoyé")
 		.setRequired(true)
 	)
     .addStringOption(option => option
@@ -23,12 +25,12 @@ export const data = new SlashCommandBuilder()
         .addChoice("heures", "heures")
         .addChoice("jours", "jours")
     );
-export async function execute(interaction, config, db) {
-    await interaction.deferReply();
+export async function execute(ctx: Context) {
+    await ctx.interaction.deferReply();
     let args = {
-        time: interaction.options.getInteger("time"),
-        message: interaction.options.getString("message"),
-        unit: interaction.options.getString("unit") || "minutes"
+        time: ctx.interaction.options.getInteger("time"),
+        message: ctx.interaction.options.getString("message"),
+        unit: ctx.interaction.options.getString("unit") || "minutes"
     }
 
     let dead_line = new Date();
@@ -48,22 +50,22 @@ export async function execute(interaction, config, db) {
             break;
     }
     
-    let channel;
-    if (await interaction.channel) {
-        channel = { 
-            channel: await interaction.channel,
-            channel_type: true
-        }
+    let channel: User | TextBasedChannel
+    if (ctx.interaction.channel) {
+        channel = ctx.interaction.channel
     } else {
-        channel = { 
-            channel: await interaction.user,
-            type_channel: false
-        }
+        channel = ctx.interaction.user
     }
 
-    let reminder = new Reminder(interaction.client, channel, dead_line.getTime(), args.message, await interaction.user, db, config);
-    await reminder.save();
-    await reminder.start();
+    let reminder = new Reminder({
+        ctx: ctx,
+        channel: channel,
+        dead_line_timestamp: dead_line.getTime(),
+        message: args.message,
+        author: ctx.interaction.user
+    })
+    reminder.save();
+    reminder.start();
 
-    await interaction.editReply("Le rappel a été ajouté !");
+    await ctx.interaction.editReply("Le rappel a été ajouté !");
 }
